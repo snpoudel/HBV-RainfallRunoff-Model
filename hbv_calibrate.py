@@ -26,7 +26,7 @@ def rmse(pars):
 
 varbound = np.array([[1,5000], #fc
                      [1,7], #beta
-                     [1,10], #lp
+                     [1,1000], #lp
                      [1,10], #sfcf
                      [1,5], #tt
                      [0,10], #cfmax
