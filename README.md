@@ -1,2 +1,3 @@
 # hbv_model_python
-This is a python script for HBV ranfall-runoff hydrological model
+- This repo contains Python script for hbv rainfall-runoff hydrological model and genetic algorithm to calibrate the model.
+
