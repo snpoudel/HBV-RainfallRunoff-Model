@@ -5,7 +5,6 @@ import pandas as pd
 from hbv_model import hpv #imported from local python script
 from geneticalgorithm import geneticalgorithm as ga # install package first
 
-
 #read input csv file
 df = pd.read_csv("climate_data.csv")
 #hpv model input
@@ -26,7 +25,7 @@ def rmse(pars):
 
 varbound = np.array([[1,5000], #fc
                      [1,7], #beta
-                     [1,1000], #lp
+                     [1,500], #lp
                      [1,10], #sfcf
                      [1,5], #tt
                      [0,10], #cfmax
