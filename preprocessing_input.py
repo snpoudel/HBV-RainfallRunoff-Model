@@ -25,6 +25,8 @@ for filename in os.listdir(csv_path):
 #end of loop
 
 ##Step2: Loop through each station ID and generate new sets of csv files that only has precip & tavg
+lat_in = pd.read_csv('C:/Cornell/HBV/from_sungwook/input data/stnID_withLatLon.csv')
+
 for station in station_id:  
     file_in = pd.read_csv(f"C:/Cornell/HBV/from_sungwook/input data/lstm_input/lstm_input_{station}.csv")
     precip = file_in["pr"]
@@ -34,9 +36,11 @@ for station in station_id:
     year = file_in["Year"]
     month = file_in["Month"]
     day = file_in["Day"]
+    id = station
+    latitude = lat_in["LAT_CENT"][lat_in["STAID"] == int(station)].values[0]
     #create a dictionary for these variables 
-    dictionary = {"year":year, "month":month, "day":day,
-                  "tavg":tavg, "precip": precip}
+    dictionary = { "id":id, "year":year, "month":month, "day":day,
+                  "tavg":tavg, "precip": precip, "latitude":latitude }
     #create dataframe from dictionary
     df = pd.DataFrame(dictionary)
     #save dataframe as a csv file
