@@ -5,10 +5,11 @@ for all the watersheds of interest for hbv rainfall runoff modeling
 '''
 #import libraries
 import numpy as np
+import pandas as pd
 import os
 import re
 
-##Extract the list of station ID from the filename
+##Step 1: Extract the list of station ID from the filename
 #path where csv files are present
 csv_path = 'C:/Cornell/HBV/from_sungwook/input data/lstm_input'
 #initialize empy list to store station ID
@@ -19,7 +20,25 @@ pattern = re.compile(r'lstm_input_(\d+)\.csv')
 for filename in os.listdir(csv_path):
     match = pattern.search(filename)
     if match:
-        id = int(match.group(1))
+        id = match.group(1)
         station_id.append(id)
 #end of loop
 
+##Step2: Loop through each station ID and generate new sets of csv files that only has precip & tavg
+for station in station_id:  
+    file_in = pd.read_csv(f"C:/Cornell/HBV/from_sungwook/input data/lstm_input/lstm_input_{station}.csv")
+    precip = file_in["pr"]
+    tmax = file_in["tmax"]
+    tmin = file_in["tmin"]
+    tavg = tmax/2 + tmin/2
+    year = file_in["Year"]
+    month = file_in["Month"]
+    day = file_in["Day"]
+    #create a dictionary for these variables 
+    dictionary = {"year":year, "month":month, "day":day,
+                  "tavg":tavg, "precip": precip}
+    #create dataframe from dictionary
+    df = pd.DataFrame(dictionary)
+    #save dataframe as a csv file
+    df.to_csv(f"C:/Cornell/HBV/from_sungwook/input data/hbv_input/hbv_input_{station}.csv", index = False)
+#end of for loop
