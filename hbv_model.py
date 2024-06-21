@@ -7,19 +7,18 @@ Reference:
 '''
 #import libraries
 import numpy as np
-import matplotlib.pyplot as plt
 import math
 import pyet #this package is used to calculate PET, install first
-# hpv function
-def hpv(pars, p, temp, latitude, routing):
+# hbv function
+def hbv(pars, p, temp, latitude, routing):
     '''
-    hpv function Input:
+    hbv function Input:
     - pars: parameter vector
     - p & temp: precipitation & temperature time series
     - latitude: centroid latitude of a watershed
     - routing: 1 = traingular routing is involved | 0 = lumped model
     
-    hpv function Output:
+    hbv function Output:
     - q: total flow/discharge
  
     '''
@@ -30,14 +29,14 @@ def hpv(pars, p, temp, latitude, routing):
     sfcf = pars[3] #snowfall correction factor
     tt = pars[4] #threshold temperature
     cfmax = pars[5] #degree-day factor
-    cfr = 0.05 #usually fixed refreezing coefficient (default 0.05)
-    cwh = 0.1 #usually fixed water holding capacity of snowpack (default 0.1)
-    k0 = pars[6] #recession constant (upper storage, near surface)
-    k1 = pars[7] #recession constant (upper storage)
-    k2 = pars[8] #recession constant (lower storage)
-    uzl = pars[9] #threshold parameter for upper storage, if water level higher than threshold shallow flow occurs
-    perc = pars[10] #percolation constant, max flow rate from upper to lower storage
-    coeff_pet = pars[11] #coefficient for potential evapotranspiration
+    cfr = pars[6] #usually fixed refreezing coefficient (default 0.05)
+    cwh = pars[7] #usually fixed water holding capacity of snowpack (default 0.1)
+    k0 = pars[8] #recession constant (upper storage, near surface)
+    k1 = pars[9] #recession constant (upper storage)
+    k2 = pars[10] #recession constant (lower storage)
+    uzl = pars[11] #threshold parameter for upper storage, if water level higher than threshold shallow flow occurs
+    perc = pars[12] #percolation constant, max flow rate from upper to lower storage
+    coeff_pet = pars[13] #coefficient for potential evapotranspiration
     
     #Initialize model variables
     pet = np.zeros(len(p)) #potential evapotranspiration

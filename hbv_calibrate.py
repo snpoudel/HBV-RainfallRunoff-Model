@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from hbv_model import hpv #imported from local python script
+from hbv_model import hbv #imported from local python script
 from geneticalgorithm import geneticalgorithm as ga # install package first
 
 #set working directory
@@ -15,7 +15,7 @@ stationid = pd.read_csv("station_id.csv", dtype={"station_id":str})
 def calibNSE(station_id):
     #read input csv file
     df = pd.read_csv(f"data/hbv_input_{station_id}.csv")
-    #hpv model input
+    #hbv model input
     p = df["precip"]
     temp = df["tavg"]
     latitude = df["latitude"]
@@ -26,7 +26,7 @@ def calibNSE(station_id):
     #reference: https://github.com/rmsolgi/geneticalgorithm
     #write a function you want to minimize
     def nse(pars):
-        q_sim = hpv(pars, p, temp, latitude, routing)
+        q_sim = hbv(pars, p, temp, latitude, routing)
         nse_value = 1 - (np.sum(np.square(q_obs - q_sim)) / np.sum(np.square(q_obs - np.mean(q_obs))))
         return -nse_value #minimize this (use negative sign if you need to maximize)
 
@@ -35,7 +35,9 @@ def calibNSE(station_id):
                         [1,500], #lp
                         [1,10], #sfcf
                         [1,5], #tt
-                        [0,10], #cfmax
+                        [0.01,10], #cfmax
+                        [0.005, 0.5], #cfr
+                        [0.01, 0.5], #cwh
                         [0.01,0.99], #k0
                         [0.01,0.99], #k1
                         [0.0001,0.9], #k2
@@ -44,9 +46,9 @@ def calibNSE(station_id):
                         [0.1,10]]) #coeff_pet
 
     algorithm_param = {
-        'max_num_iteration': 50,                # Generations, higher is better, but requires more computational time
+        'max_num_iteration': 20,                # Generations, higher is better, but requires more computational time
         'max_iteration_without_improv': None,   # Stopping criterion for lack of improvement
-        'population_size': 10,                  # Number of parameter-sets in a single iteration/generation
+        'population_size': 5,                  # Number of parameter-sets in a single iteration/generation
         'parents_portion': 0.2,                 # Portion of new generation population filled by previous population
         'elit_ratio': 0.01,                     # Portion of the best individuals preserved unchanged
         'crossover_probability': 0.5,           # Chance of existing solution passing its characteristics to new trial solution
@@ -55,7 +57,7 @@ def calibNSE(station_id):
     }
 
     model = ga(function = nse,
-            dimension = 12, #number of parameters to be calibrated
+            dimension = 14, #number of parameters to be calibrated
             variable_type= 'real',
             variable_boundaries = varbound,
             algorithm_parameters = algorithm_param)
