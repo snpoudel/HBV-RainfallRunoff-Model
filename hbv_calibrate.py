@@ -6,14 +6,13 @@ from hbv_model import hpv #imported from local python script
 from geneticalgorithm import geneticalgorithm as ga # install package first
 
 #read input csv file
-df = pd.read_csv("climate_data.csv")
+df = pd.read_csv("C:/Cornell/HBV/hbv_model_python/data/hbv_input_01094400.csv")
 #hpv model input
-p = df["prcp_mm"]
-temp = df["t_avg"]
+p = df["precip"]
+temp = df["tavg"]
 latitude = df["latitude"]
 routing = 0 #no routing
-#validation data / observed flow
-q_obs = df["obs_flow"] #this is not available now
+q_obs = df["qobs"] #validation data / observed flow
 
 ##genetic algorithm for hbv model calibration
 #reference: https://github.com/rmsolgi/geneticalgorithm
@@ -36,9 +35,9 @@ varbound = np.array([[1,5000], #fc
                      [0.001,0.9], #perc
                      [0.1,10]]) #coeff_pet
 
-algorithm_param = {'max_num_iteration':1000,
-                   'population_size':100,
-                   'mutation_probability':0.1,
+algorithm_param = {'max_num_iteration':500,
+                   'population_size':50,
+                   'mutation_probability':0.2,
                    'elit_ratio':0.01,
                    'crossover_probability':0.5,
                    'parents_portion':0.3,
@@ -53,5 +52,8 @@ model = ga(function = rmse,
 
 model.run()
 
-#ouptput of the genetic algorithm/best parameters
+#output of the genetic algorithm/best parameters
 best_parameters = model.output_dict
+
+param_value = best_parameters["variable"]
+rmse = best_parameters["function"]

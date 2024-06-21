@@ -30,6 +30,7 @@ lat_in = pd.read_csv('C:/Cornell/HBV/from_sungwook/input data/stnID_withLatLon.c
 for station in station_id:  
     file_in = pd.read_csv(f"C:/Cornell/HBV/from_sungwook/input data/lstm_input/lstm_input_{station}.csv")
     precip = file_in["pr"]
+    qobs = file_in["q"]
     tmax = file_in["tmax"]
     tmin = file_in["tmin"]
     tavg = tmax/2 + tmin/2
@@ -40,7 +41,7 @@ for station in station_id:
     latitude = lat_in["LAT_CENT"][lat_in["STAID"] == int(station)].values[0]
     #create a dictionary for these variables 
     dictionary = { "id":id, "year":year, "month":month, "day":day,
-                  "tavg":tavg, "precip": precip, "latitude":latitude }
+                  "tavg":tavg, "precip": precip, "qobs":qobs, "latitude":latitude }
     #create dataframe from dictionary
     df = pd.DataFrame(dictionary)
     #save dataframe as a csv file
