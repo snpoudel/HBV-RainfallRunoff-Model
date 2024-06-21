@@ -23,7 +23,8 @@ for filename in os.listdir(csv_path):
         id = match.group(1)
         station_id.append(id)
 #end of loop
-
+df_stationID = pd.DataFrame(station_id, columns=["station_id"])
+df_stationID.to_csv("station_id.csv", index=False)
 ##Step2: Loop through each station ID and generate new sets of csv files that only has precip & tavg
 lat_in = pd.read_csv('C:/Cornell/HBV/from_sungwook/input data/stnID_withLatLon.csv')
 
