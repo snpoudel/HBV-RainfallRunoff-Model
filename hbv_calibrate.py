@@ -1,15 +1,12 @@
 #import packages
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 import os
 from hbv_model import hbv #imported from local python script
 from geneticalgorithm import geneticalgorithm as ga # install package first
 
-#set working directory
-os.chdir("C:/Cornell/HBV/hbv_model_python")
 #read stationID
-stationid = pd.read_csv("station_id.csv", dtype={"station_id":str})
+#stationid = pd.read_csv("station_id.csv", dtype={"station_id":str})
 
 #function that reads station ID, takes input for that ID and outputs calibrated parameters and nse values
 def calibNSE(station_id):
@@ -81,4 +78,4 @@ def calibNSE(station_id):
     #End of function
 
 #call the function
-calibNSE(station_id=stationid["station_id"][0])
+#calibNSE(station_id=stationid["station_id"][0])
