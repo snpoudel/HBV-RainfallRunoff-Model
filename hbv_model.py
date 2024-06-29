@@ -3,7 +3,8 @@ HBV (Hydrologiska byrÂns vattenavdelning) model
 Reference:
 - Seibert, Jan. "HBV light." User’s manual, Uppsala University, Institute of Earth Science, Department of Hydrology, Uppsala (1996).
 - R code written by J.P. Gannon, March 2021
-
+- https://www.smhi.se/polopoly_fs/1.83592!/Menu/general/extGroup/attachmentColHold/mainCol1/file/RH_4.pdf
+- https://hess.copernicus.org/articles/16/3315/2012/hess-16-3315-2012.pdf
 '''
 #import libraries
 import numpy as np
@@ -29,8 +30,8 @@ def hbv(pars, p, temp, latitude, routing):
     sfcf = pars[3] #snowfall correction factor
     tt = pars[4] #threshold temperature
     cfmax = pars[5] #degree-day factor
-    cfr = pars[6] #usually fixed refreezing coefficient (default 0.05)
-    cwh = pars[7] #usually fixed water holding capacity of snowpack (default 0.1)
+    cfr = pars[6] #usually fixed, refreezing coefficient (default 0.05)
+    cwh = pars[7] #usually fixed, water holding capacity of snowpack (default 0.1)
     k0 = pars[8] #recession constant (upper storage, near surface)
     k1 = pars[9] #recession constant (upper storage)
     k2 = pars[10] #recession constant (lower storage)
@@ -143,7 +144,7 @@ def hbv(pars, p, temp, latitude, routing):
         
         
         mean_sm = (sm + old_sm)/2 #average soil moisture to estimate AET
-        if(mean_sm < lp * fc): #soil moisture less than wilting point/threshold?
+        if(mean_sm < lp * fc): #soil moisture less than wilting point/threshold? #lp * fc should represent permanent wilting point
             aet[t] = pet[t] * mean_sm / (lp * fc)
         else:
             aet[t] = pet[t]
