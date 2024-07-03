@@ -17,7 +17,6 @@ def calibNSE(station_id):
     #hbv model input
     p = df["precip"]
     temp = df["tavg"]
-    date = df["date"]
     latitude = df["latitude"]
     routing = 1 # 0: no routing, 1 allows running
     q_obs = df["qobs"] #validation data / observed flow
@@ -26,7 +25,7 @@ def calibNSE(station_id):
     #reference: https://github.com/rmsolgi/geneticalgorithm
     #write a function you want to minimize
     def nse(pars):
-        q_sim = hbv(pars, p, temp, date, latitude, routing)
+        q_sim = hbv(pars, p, temp, latitude, routing)
         denominator = np.sum((q_obs - (np.mean(q_obs)))**2)
         numerator = np.sum((q_obs - q_sim)**2)
         nse_value = 1 - (numerator/denominator)
@@ -34,41 +33,38 @@ def calibNSE(station_id):
 
     varbound = np.array([[1,1000], #fc
                         [1,7], #beta
-                        [0.01,0.99], #pwp
-                        [1,999], #l
-                        [0.01,0.99], #ks
-                        [0.01,0.99], #ki
-                        [0.0001, 0.99], #kb
-                        [0.001, 0.99], #kperc
-                        [0.5,2], #coeff_pet
-                        [0.01,10], #ddf
-                        [0.5,1.5], #scf
-                        [-1,4], #ts
-                        [-1,4], #tm
-                        [-1,4], #tti
-                        [0, 0.2], #whc
-                        [0.1,1], #crf
-                        [1,10]]) #maxbas
+                        [0.01,1], #lp
+                        [1,3], #sfcf
+                        [-1,4], #tt
+                        [0.1,15], #cfmax
+                        [0.005, 0.5], #cfr
+                        [0.01, 0.2], #cwh
+                        [0.01,0.99], #k0
+                        [0.01,0.99], #k1
+                        [0.0001,0.99], #k2
+                        [0.01,500], #uzl
+                        [0.001,0.99], #perc
+                        [0.1,5], #coeff_pet
+                        [1, 10]]) #maxbas
 
     algorithm_param = {
-        'max_num_iteration': 100,              # Generations, higher is better, but requires more computational time
+        'max_num_iteration': 1000,                # Generations, higher is better, but requires more computational time
         'max_iteration_without_improv': None,   # Stopping criterion for lack of improvement
-        'population_size': 200,                 # Number of parameter-sets in a single iteration/generation(to start with population 10 times the number of parameters should be fine!)
+        'population_size': 150,                 # Number of parameter-sets in a single iteration/generation(to start with population 10 times the number of parameters should be fine!)
         'parents_portion': 0.3,                 # Portion of new generation population filled by previous population
-        'elit_ratio': 0.01,                     # Portion of the best individuals preserved unchanged
+        'elit_ratio': 0.01,     #0.01,0.05                # Portion of the best individuals preserved unchanged
         'crossover_probability': 0.3,           # Chance of existing solution passing its characteristics to new trial solution
         'crossover_type': 'uniform',            # Create offspring by combining the parameters of selected parents
         'mutation_probability': 0.01            # Introduce random changes to the offspring’s parameters (0.1 is 10%)
     }
 
     model = ga(function = nse,
-            dimension = 17, #number of parameters to be calibrated
+            dimension = 15, #number of parameters to be calibrated
             variable_type= 'real',
             variable_boundaries = varbound,
             algorithm_parameters = algorithm_param)
 
     model.run()
-    #end of genetic algorithm
 
     #output of the genetic algorithm/best parameters
     best_parameters = model.output_dict
@@ -77,9 +73,8 @@ def calibNSE(station_id):
     nse_value = -nse_value #nse function gives -ve values, which is now reversed here to get true nse
     #convert into a dataframe
     df_param = pd.DataFrame(param_value).transpose()
-    df_param = df_param.rename(columns={0:"fc", 1:"beta", 2:"pwp", 3:"l", 4:"ks", 5:"ki",
-                             6:"kb", 7:"kperc",  8:"coeff_pet", 9:"ddf", 10:"scf", 11:"ts",
-                             12:"tm", 13:"tti", 14:"whc", 15:"crf", 16:"maxbas"})
+    df_param = df_param.rename(columns={0:"fc", 1:"beta", 2:"lp", 3:"sfcf", 4:"tt", 5:"cfmax",
+                             6:"cfr", 7:"cwh",  8:"k0", 9:"k1", 10:"k2", 11:"uzl", 12:"perc", 13:"coeff_pet", 14:"maxbas"})
     df_param["station_id"] = str(station_id)
     df_nse = pd.DataFrame([nse_value], columns=["nse"])
     df_nse["station_id"] = str(station_id)
@@ -88,3 +83,4 @@ def calibNSE(station_id):
     df_nse.to_csv(f"output/nse/nse_{station_id}.csv", index = False)
     #End of function
 
+#call the function

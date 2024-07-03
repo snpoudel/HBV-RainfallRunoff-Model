@@ -45,6 +45,9 @@ for station in station_id:
                   "tavg":tavg, "precip": precip, "qobs":qobs, "latitude":latitude }
     #create dataframe from dictionary
     df = pd.DataFrame(dictionary)
+    #Now add date
+    df["date"] = pd.to_datetime(df[["year", "month", "day"]])
+    
     #save dataframe as a csv file
     df.to_csv(f"C:/Cornell/HBV/from_sungwook/input data/hbv_input/hbv_input_{station}.csv", index = False)
 #end of loop

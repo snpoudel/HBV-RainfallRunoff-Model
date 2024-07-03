@@ -1,210 +1,243 @@
 '''
 HBV (Hydrologiska byrÂns vattenavdelning) model 
 Reference:
-- Seibert, Jan. "HBV light." User’s manual, Uppsala University, Institute of Earth Science, Department of Hydrology, Uppsala (1996).
-- R code written by J.P. Gannon, March 2021
 - https://www.smhi.se/polopoly_fs/1.83592!/Menu/general/extGroup/attachmentColHold/mainCol1/file/RH_4.pdf
-- https://hess.copernicus.org/articles/16/3315/2012/hess-16-3315-2012.pdf
 '''
 #import libraries
 import numpy as np
+import pandas as pd
 import math
-import pyet #this package is used to calculate PET, install first
+#import pyet #this package is used to calculate PET, install first
 # hbv function
-def hbv(pars, p, temp, latitude, routing):
+def hbv(pars, p, temp, date, latitude, routing):
     '''
     hbv function Input:
     - pars: parameter vector
     - p & temp: precipitation & temperature time series
+    - date: date in YYYY-MM-DD
     - latitude: centroid latitude of a watershed
-    - routing: 1 = traingular routing is involved | 0 = lumped model
+    - routing: 1 = traingular routing is involved | 0 = no routing
     
     hbv function Output:
-    - q: total flow/discharge
+    - qtotal: total flow/discharge
  
     '''
     #set model parameters
     fc = pars[0] #maximum soil moisture storage, field capacity
     beta = pars[1] #shape coefficient governing fate of water input to soil moisture storage
-    lp = pars[2] #soil moisture value above which actual ET reaches potential ET
-    sfcf = pars[3] #snowfall correction factor
-    tt = pars[4] #threshold temperature
-    cfmax = pars[5] #degree-day factor
-    cfr = pars[6] #usually fixed, refreezing coefficient (default 0.05)
-    cwh = pars[7] #usually fixed, water holding capacity of snowpack (default 0.1)
-    k0 = pars[8] #recession constant (upper storage, near surface)
-    k1 = pars[9] #recession constant (upper storage)
-    k2 = pars[10] #recession constant (lower storage)
-    uzl = pars[11] #threshold parameter for upper storage, if water level higher than threshold shallow flow occurs
-    perc = pars[12] #percolation constant, max flow rate from upper to lower storage
-    coeff_pet = pars[13] #coefficient for potential evapotranspiration
+    pwp = pars[2] #soil permanent wilting point
+    l = pars[3] #threshold parameter for upper storage, if water level higher than threshold shallow flow occurs
+    ks = pars[4] #recession constant (upper storage, near surface)
+    ki = pars[5] #recession constant (upper storage)
+    kb = pars[6] #recession constant (lower storage)
+    kperc = pars[7] #percolation constant, max flow rate from upper to lower storage
+    coeff_pet = pars[8] #coefficient for potential evapotranspiration
+
+    ddf = pars[9] #degree-day factor
+    scf = pars[10] #snowfall correction factor
+    ts = pars[11] #threshold temperature for snow falling
+    tm = pars[12] #threshold temperature for snowmelt
+    tti = pars[13] #temperature interval for mixture of snow and rain
+    whc = pars[14] #usually fixed, water holding capacity of snowpack (default 0.1)
+    crf = pars[15] #usually fixed, refreezing coefficient (default 0.05)
     
+    maxbas = pars[16] #traingular weighting function routing parameter, it represents time taken by water to move through the catchment and reach outlet
+
     #Initialize model variables
-    pet = np.zeros(len(p)) #potential evapotranspiration
-    aet = np.zeros(len(p)) #actual evapotranspiration
-    sf = np.zeros(len(p)) #snowfall
-    r = np.zeros(len(p)) #recharge
-    soil = np.zeros(len(p)) #soil storage
-    swe = np.zeros(len(p)) #snow water equivalent
-    w = np.zeros(len(p)) #water input = snowmelt + rainfall
-    storage = np.zeros(len(p)) #total storage
-    s1 = np.zeros(len(p)) #upper zone storage
-    s2 = np.zeros(len(p)) #lower zone storage
-    q_stz = np.zeros(len(p)) #shallow flow = saturated overland flow
-    q_suz = np.zeros(len(p)) #upper zone flow = interflow
-    q_slz = np.zeros(len(p)) #lower zone flow = groundwater flow
-    qgen = np.zeros(len(p)) #streamflow sources not routed through channel network
-    
-    suz = 0 #initial storage in upper zone
-    slz = 0 #initial storage in lower zone
-    sp = 0 #initial snowpack
-    wc = 0 #initial liquid water on snowpack
-    sm = fc #initial soil moisture /storage content
+    sim_snow = np.zeros(len(p)) #simulated snow
+    sim_swe =np.zeros(len(p)) #simulated snow water equivalent
+    sim_melt = np.zeros(len(p)) #simulated snow melt
+    pr_eff = np.zeros(len(p)) #effective precip (amount of liquid water available to enter soil matrix at a time step)
+
+    sim_et = np.zeros(len(p)) #simulated actual evapotranspiration
+    sim_pexc = np.zeros(len(p)) #simulated effective rainfall
+    sim_sma = np.zeros(len(p)) #simulated soil moisuture storage accounting tank
+    inflow_direct = np.zeros(len(p)) #direct flow
+    inflow_base = np.zeros(len(p)) #base flow
+
+    state_upres = 0  #initial storage in upper zone/reservoir
+    state_lowres = 0 #initial storage in lower zone/reservoir
+    state_snow = 0 #initial state of snow storage
+    state_sliq = 0 #initial state of liquid water on snowpack
+    state_sma = 0 #initial state of soil moisture storage
     
     
     #Calculate potential evapotranspiration using Hamon's method
-    #Use pyet package, Reference: https://pyet.readthedocs.io/en/latest/
-    pet = pyet.hamon(temp, latitude[1], method = 2, cc = coeff_pet)
+    #convert date to julian date
+    date = pd.to_datetime(date) #convert first to python datetime format
+    jdate = date.dt.strftime('%j').astype(int)
+    #calculate daylight hour
+    var_theta = 0.2163108 + 2 * np.arctan(0.9671396 * np.tan(0.0086 * (jdate - 186)))
+    var_pi = np.arcsin(0.39795 * np.cos(var_theta))
+    daylighthr = 24 - 24 / math.pi * np.arccos((np.sin(0.8333 * math.pi / 180) + np.sin(latitude * math.pi / 180) * np.sin(var_pi)) / (np.cos(latitude * math.pi / 180) * np.cos(var_pi)))
+    #now use Hamon's equation
+    esat = 0.611 * np.exp(17.27 * temp/(237.3+temp))
+    potevap = coeff_pet * 29.8 * daylighthr * (esat/(temp+273.2))
+
     
     ##-------Start of Time Loop-------
-    for t in range(len(p)):
+    for t in range(1, len(p)):
         
         ##Snow Routine
         '''
         Snow Routine takes temperature and precipitation as input and
         provides updated value of snow pack and water available to enter soil as output
         '''
-        inc = 0 #total liquid water that can enter soil (water from snow routine available to soil routine)
-    
-        if (sp>0): #if ground has snowpack
-            
-            if(p[t] > 0): #if it is precipitating (do we really need to say this?)
-                if (temp[t] > tt): #present temp > threshold temp
-                    wc = wc + p[t] #add precipitation to water content present in snowpack
-                else:
-                    sp = sp + p[t] * sfcf #add precipitation as snow to snowpack
-            
-            
-            if(temp[t] >tt): #warm temperature will cause melting
-                melt = cfmax * (temp[t] - tt) #melting of snowpack, but not more than available snowpack
-                if(melt > sp):
-                    inc = sp + wc 
-                    wc = 0
-                    sp = 0
-                else:
-                    sp = sp - melt
-                    wc = wc + melt #water content increased by melted snow
-                    if(wc >= cwh * sp): #snowpack can only retain max of cwh*sp of water content
-                        inc = wc - cwh * sp #If there is more liquid water, this goes to runoff (note:if there is no snowpack all water will go to catchment input)
-                        wc = cwh * sp
-            else: #freezing temperature will cause refreezing
-                refreeze = cfr * cfmax * (tt - temp[t]) ##Refreezing of meltwater occurs if T < TT
-                if(refreeze > wc):
-                    refreeze = wc #refreeze cant be more than available liquid water
-                sp = sp + refreeze
-                wc = wc - refreeze
-                sf[t] = p[t] * sfcf #snowfall
-                
-        else: #if ground doesn't have snowpack
-            if(temp[t] > tt):
-                inc = p[t] #if too warm, input is rain
+        ct = temp[t] #temperature at current timestep
+        cp = p[t] #precipitation at current timestep
+
+        # Determine if precipitation is snow, rain, or a mixture
+        if ct >= (ts + tti): #All rain, no snow
+            snow = 0
+            rain = cp
+        elif ct <= ts:  # All snow, no rain
+            snow = cp
+            rain = 0
+        else:  # Linear mixture of snow and rain in interval tti
+            snowfrac = -1 / tti * (ct - ts) + 1
+            snow = cp * snowfrac
+            rain = cp * (1 - snowfrac)
+
+        # If there is snow to melt
+        if state_snow > 0:
+            if ct > tm:
+                melt = ddf * (ct - tm)
             else:
-                sp = p[t] * sfcf
-        swe[t] = sp + wc #swe, snow water equivalent
-        
+                melt = 0
+
+            if melt > state_snow:
+                # if melt>snow, add all snow and incoming rain to the liquid water storage in snow
+                state_sliq += state_snow + rain
+                state_snow = 0
+            else:
+                # otherwise, add melt portion and incoming rain to the liquid water storage in snow
+                state_sliq += melt + rain
+                state_snow -= melt
+
+            # Calculate maximum liquid water held by the remaining snow
+            liqmax = state_snow * whc
+
+            if state_sliq > liqmax:
+                pr_eff[t] = state_sliq - liqmax
+                state_sliq = liqmax
+            else:
+                pr_eff[t] = 0
+        else:
+            melt = 0
+            pr_eff[t] = rain
+
+        # Calculate refreezing
+        if ct < tm:
+            refreeze = (tm - ct) * ddf * crf
+        else:
+            refreeze = 0
+
+        if refreeze > state_sliq:
+            # if refreeze >  liquid content of the snow, add entire liquid portion to current snow storage
+            state_snow += state_sliq
+            state_sliq = 0
+        else: # if there is more liquid than will actually refreeze, add refreezing portion to the snow store
+            state_snow += refreeze
+            state_sliq -= refreeze
+
+        # Final snow store for the time step by multiplying with snowfall correction factor
+        state_snow += snow * scf
+
+        sim_swe[t] = state_snow + state_sliq
+        sim_snow[t] = snow
+        sim_melt[t] = melt
         
         
         ##Soil Moisture Routine
         '''
-        Soil moisture takes the available water to enter soil (inc) as an input from snow module, and updates
+        Soil moisture takes the available water to enter soil (pr_eff) as an input from snow module, and updates
         soil moisture and recharge, the updated soil moisture is then used to calculate actual evapotranspiration
         '''
-        rq = 0 #Recharge
-        old_sm = sm #previous soil moisture
-        if(inc > 0): #if water available to enter soil
-            if(inc < 1):
-                y = inc
+        #calculate effective precipitation
+        if state_sma > fc:
+            peff = pr_eff[t]
+        else:
+            effratio = (state_sma / fc) ** beta
+            remainwater = pr_eff[t] * (1 - effratio)
+            if remainwater + state_sma > fc:
+                peff = pr_eff[t] + state_sma - fc
+                state_sma = fc
             else:
-                m = math.floor(inc) #loop through 1mm increments
-                y = inc - m  
-                for i in range(m): #Loop for adding input to soil 1 mm at a time to avoid instability
-                    dqdp = (sm/fc) ** beta ##Partitioning betn recharge and soil moisture storage
-                    if(dqdp > 1):
-                        dqdp = 1 #dqdp is recharge to available water ratio,also sm to fc ratio, which shouldn't be > 1
-                    else: 
-                        sm = sm + 1 - dqdp #1mm is added to soil moisture but dqdp deducted as richarge(as water entering is 1mm, dqdp (recharge/water entering = recharge/1) is basically only recharge now)
-                        rq = rq + dqdp 
-                        
-            dqdp = (sm/fc) ** beta # for the y amount of water
-            if(dqdp > 1):
-                dqdp = 1
-            else:
-                sm = sm + y - dqdp * y #soil moisture update
-                rq = rq + dqdp * y #recharge
+                peff = pr_eff[t] - remainwater
+                state_sma += remainwater
         
-        
-        mean_sm = (sm + old_sm)/2 #average soil moisture to estimate AET
-        if(mean_sm < lp * fc): #soil moisture less than wilting point/threshold? #lp * fc should represent permanent wilting point
-            aet[t] = pet[t] * mean_sm / (lp * fc)
+        #calculate actual evapotranspiration
+        if state_sma > (pwp * fc):
+            pet = potevap[t]
         else:
-            aet[t] = pet[t]
+            pet = potevap[t] * (state_sma / (pwp * fc)) #adjusted evapotranspiration
+        et = min(pet, state_sma) #actual evapotranspiration
+        state_sma -= et
+
+        #calculate flow
+        state_upres += peff
+        qs = max(0, (state_upres - l) * ks)
+        qi = min(l, state_upres) * ki
+        qperc = (state_upres - qs - qi) * kperc
+        state_upres = max(state_upres - qs - qi - qperc, 0)
+        qq = qs + qi
         
-        if(sp + wc > 0):
-            aet[t] = 0 #no evap if snow is present
-            
-        sm = sm - aet[t] #update soil moisture by reducing the evaporated water
-        
-        if(sm < 0):
-            soil[t] = 0 #no storage in soil
-            sm = 0
-            
-        soil[t] = sm #storage value in soil at this timestep
-        r[t] = rq #recharge at this time step
-        w[t] = inc #water that was available to enter soil at this timestep
-        
-        ##Response function/ groudwater storage
-        ''' 
-        This uses recharge from soil routine, partitions it on upper and lower storage 
-        and provides total discharge as a summation of shallow flow, interflow & baseflow
-        '''
-        suz = suz + rq #recharge adds to upper zone storage
-        if(suz - perc < 0): #if perc>upper storage, all water moves to lower storage
-            slz = slz + suz 
-            suz = 0
-        else:
-            slz = slz + perc
-            suz = suz - perc
-        
-        if(suz < uzl): #if upper zone storage is less than shallow flow threshold
-            q_stz[t] = 0 #no shallow flow
-        else:
-            q_stz[t] = (suz - uzl) * k0 #shallow flow occurs
-        
-        q_suz[t] = suz * k1 #flow from upper storage, interflow
-        q_slz[t] = slz * k2 #flow from lower storage, baserflow
-        
-        suz = suz - q_suz[t] - q_stz[t] #upper zone storage reduces by interflow and shallow flow
-        slz = slz - q_slz[t] #lower zone storage reduces by baseflow
-        
-        s1[t] = suz #upper zone storage at this timestep
-        s2[t] = slz #lower zone storage at this timestep
-        
-        #total discharge 
-        qgen[t] = q_stz[t] + q_suz[t] + q_slz[t]
-        #total storage
-        storage[t] = s1[t] + s2[t] + soil[t] 
-        
-    ##-------Start of Time Loop-------
+        state_lowres += qperc
+        qb = state_lowres * kb
+        state_lowres -= qb
+
+        #intermediate states
+        sim_sma[t] = state_sma #simulated state of soil moisture account
+        sim_et[t] = et #simulated actual evapotranspiration
+        sim_pexc[t] = peff #simulated effective rainfall
+
+        #total flow at this timestep
+        inflow_direct[t] = qq
+        inflow_base[t] = qb
+
+    ##-------End of Time Loop-------
     
+
     ## Routing 
     if(routing == 1):
-        print("Routing is not considered now/ consideration of lumped model!!")
-    else:
-        qs = q_stz   #not routed shallow flow = Saturated overland flow or other rapid process
-        qi = q_suz   #not routed upper zone flow = interflow
-        qb = q_slz   #not routed lower zone flow = baseflow
-        q  = qgen    #total flow routed to catchment outlet
+        #set integration step
+        step = 0.005
+        i = np.arange(0, maxbas + step, step)
+        h = np.zeros(len(i))
+        #define indices to construct traingular weighting function
+        j = np.where(i<maxbas/2)
+        h[j] = step * (i[j] *4 / maxbas ** 2)
+
+        j = np.where(i >= maxbas/2)
+        h[j] = step *(4 / maxbas - i[j] * 4 / maxbas **2)
+
+        # Allow base of weighting function to be noninteger, adjust for extra weights for the last day
+        if maxbas % 1 > 0:
+            I = np.arange(1, len(i), (len(i) - 1) / maxbas)
+            I = np.append(I, len(i))
+        else:
+            I = np.arange(1, len(i), (len(i) - 1) / maxbas)
+
+        maxbas_w = np.zeros(len(I))
+
+        # Integration of function
+        for k in range(1, len(I)):
+            maxbas_w[k] = np.sum(h[int(np.floor(I[k-1])):int(np.floor(I[k]))])
+
+        # Ensure integration sums to unity for mass balance
+        maxbas_w = maxbas_w[1:] / np.sum(maxbas_w[1:], where=~np.isnan(maxbas_w[1:]))
+
+        # ROUTING OF DISCHARGE COMPONENTS
+        qdirect = np.convolve(inflow_direct, maxbas_w, mode='full')[:len(p)]  # Routed direct flow
+        qbase = np.convolve(inflow_base, maxbas_w, mode='full')[:len(p)]  # Routed base flow
+        qtotal = qdirect + qbase
+        
+    else: #no routing
+        qdirect = inflow_direct   #unrouted direct flow
+        qbase = inflow_base   #unrouted base flow
+        qtotal  = qdirect + qbase    #total flow 
     
     #return total flow as output
-    return q
+    return qtotal
 #End of function  
+
