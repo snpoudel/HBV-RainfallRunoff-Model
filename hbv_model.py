@@ -2,6 +2,8 @@
 HBV (Hydrologiska byrÂns vattenavdelning) model 
 Reference:
 - https://www.smhi.se/polopoly_fs/1.83592!/Menu/general/extGroup/attachmentColHold/mainCol1/file/RH_4.pdf
+- https://hess.copernicus.org/articles/16/3315/2012/hess-16-3315-2012.pdf
+- Matlab code by Sungwook Wi
 '''
 #import libraries
 import numpy as np
@@ -65,7 +67,7 @@ def hbv(pars, p, temp, date, latitude, routing):
     #Calculate potential evapotranspiration using Hamon's method
     #convert date to julian date
     date = pd.to_datetime(date) #convert first to python datetime format
-    jdate = date.dt.strftime('%j').astype(int)
+    jdate = date.dt.strftime('%j').astype(int) #convert to julian date
     #calculate daylight hour
     var_theta = 0.2163108 + 2 * np.arctan(0.9671396 * np.tan(0.0086 * (jdate - 186)))
     var_pi = np.arcsin(0.39795 * np.cos(var_theta))
