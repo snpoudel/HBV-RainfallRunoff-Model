@@ -88,3 +88,5 @@ def calibNSE(station_id):
     df_nse.to_csv(f"output/nse/nse_{station_id}.csv", index = False)
     #End of function
 
+
+#calibNSE("01175670")

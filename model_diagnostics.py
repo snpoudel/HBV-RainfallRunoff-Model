@@ -93,7 +93,7 @@ for station_id in station["station_id"]:
     #read input csv file
     df = pd.read_csv(f"data/hbv_input_{station_id}.csv")
     #read calibrated parameters
-    calib_params_df = pd.read_csv(f"output/parameter/param_{station_id}.csv")
+    calib_params_df = pd.read_csv(f"output/parameter/param_{station_id}.csv", dtype = {'station_id':str})
     calib_params = calib_params_df.iloc[0, :-1]
     q_obs = df["qobs"] #validation data / observed flow
     q_sim = hbv(calib_params, df["precip"], df["tavg"], df["date"], df["latitude"], routing = 1)
@@ -115,13 +115,14 @@ for station_id in station["station_id"]:
     calib_params_df["nse_valid"] = nse_validation
     calib_nse_df = pd.concat([calib_nse_df, calib_params_df])
 #End of for loop
-
 #save the final dataframe
 calib_nse_df.to_csv("output/Caliparams_nse.csv", index=False)
 
+
 #make cdf plot
-sns.kdeplot(nse_df_calib, cumulative=True, bw_adjust=0.2, color="red", label = "Calibration(1994-2005)")
-sns.kdeplot(nse_df_valid, cumulative=True, bw_adjust=0.2, color="blue", label = "Validation(2006-2015)")
+df_plot = calib_nse_df.dropna()
+sns.kdeplot(df_plot['nse_calib'], cumulative=True, bw_adjust=0.3, color="red", label = "Calibration(1994-2005)")
+sns.kdeplot(df_plot['nse_valid'], cumulative=True, bw_adjust=0.3, color="blue", label = "Validation(2006-2015)")
 plt.xlabel("NSE")
 plt.ylabel("CDF")
 plt.xlim(0,1)
